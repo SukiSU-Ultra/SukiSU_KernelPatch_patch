@@ -162,6 +162,7 @@ typedef int32_t extra_item_type;
 #define EXTRA_TYPE_EXEC 3
 #define EXTRA_TYPE_RAW 4
 #define EXTRA_TYPE_ANDROID_RC 5
+#define EXTRA_TYPE_KCONFIG 6
 
 #define EXTRA_TYPE_NONE_STR "none"
 #define EXTRA_TYPE_KPM_STR "kpm"
@@ -169,6 +170,7 @@ typedef int32_t extra_item_type;
 #define EXTRA_TYPE_EXEC_STR "exec"
 #define EXTRA_TYPE_RAW_STR "raw"
 #define EXTRA_TYPE_ANDROID_RC_STR "android_rc"
+#define EXTRA_TYPE_KCONFIG_STR "kconfig"
 
 // todo
 #define EXTRA_EVENT_PAGING_INIT "paging-init"
@@ -255,7 +257,9 @@ typedef struct _setup_preset_t
     uint8_t root_superkey[ROOT_SUPER_KEY_HASH_LEN];
     int64_t sprintf_offset;
     int64_t symbol_lookup_anchor_offset;
-    uint8_t __[SETUP_PRESERVE_LEN - 16];
+    int64_t kconfig_offset;
+    int64_t kconfig_size;
+    uint8_t __[SETUP_PRESERVE_LEN - 32];
     patch_config_t patch_config;
     char additional[ADDITIONAL_LEN];
 } setup_preset_t;
@@ -279,6 +283,8 @@ typedef struct _setup_preset_t
 #define setup_root_superkey_offset (setup_superkey_offset + SUPER_KEY_LEN)
 #define setup_sprintf_offset_offset (setup_root_superkey_offset + ROOT_SUPER_KEY_HASH_LEN)
 #define setup_symbol_lookup_anchor_offset_offset (setup_sprintf_offset_offset + 8)
+#define setup_kconfig_offset_offset (setup_symbol_lookup_anchor_offset_offset + 8)
+#define setup_kconfig_size_offset (setup_kconfig_offset_offset + 8)
 #define setup_patch_config_offset (setup_root_superkey_offset + ROOT_SUPER_KEY_HASH_LEN + SETUP_PRESERVE_LEN)
 #define setup_end (setup_patch_config_offset + PATCH_CONFIG_LEN)
 #endif

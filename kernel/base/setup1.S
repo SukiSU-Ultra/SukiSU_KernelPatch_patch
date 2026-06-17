@@ -99,6 +99,14 @@ start_prepare:
     ldr x13, [x10, #setup_symbol_lookup_anchor_offset_offset]
     str x13, [x11, #start_symbol_lookup_anchor_offset_offset]
 
+    // start_preset.kconfig_offset = setup_preset.kconfig_offset
+    ldr x13, [x10, #setup_kconfig_offset_offset]
+    str x13, [x11, #start_kconfig_offset_offset]
+
+    // start_preset.kconfig_size = setup_preset.kconfig_size
+    ldr x13, [x10, #setup_kconfig_size_offset]
+    str x13, [x11, #start_kconfig_size_offset]
+
     // memcpy(&start_preset.setup, &setup_header, KP_HEADER_SIZE);
     add x0, x11, #start_header_offset
     add x1, x12, #0

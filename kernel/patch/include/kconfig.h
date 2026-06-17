@@ -6,8 +6,14 @@
 #ifndef _KP_KCONFIG_H_
 #define _KP_KCONFIG_H_
 
-// todo: move config to here
+#include <ktypes.h>
 
 extern bool has_config_compat;
+
+int kp_kconfig_available(void);
+int kp_kconfig_enabled(const char *name);
+const char *kp_kconfig_value(const char *name);
+const char *kp_kconfig_data(void);
+int kp_kconfig_size(void);
 
 #endif

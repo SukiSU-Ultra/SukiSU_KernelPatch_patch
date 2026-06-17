@@ -17,11 +17,32 @@
 #include "order.h"
 #include "insn.h"
 #include "common.h"
+#include "preset.h"
 
 #define IKCFG_ST "IKCFG_ST"
 #define IKCFG_ED "IKCFG_ED"
 #include "zlib.h"
 
+static int find_ikconfig_blob(char *img, int32_t imglen, size_t *start, size_t *size)
+{
+    char *pos_start = memmem(img, imglen, IKCFG_ST, strlen(IKCFG_ST));
+    if (!pos_start) return 1;
+
+    size_t kcfg_start = pos_start - img + strlen(IKCFG_ST);
+    char *pos_end = memmem(img + kcfg_start, imglen - kcfg_start, IKCFG_ED, strlen(IKCFG_ED));
+    if (!pos_end) return 2;
+
+    while (kcfg_start < (size_t)imglen && (img[kcfg_start] == '\0' || img[kcfg_start] == '\n')) {
+        kcfg_start++;
+    }
+
+    size_t kcfg_bytes = pos_end - (img + kcfg_start);
+    if (!kcfg_bytes) return 3;
+
+    *start = kcfg_start;
+    *size = kcfg_bytes;
+    return 0;
+}
 
 int find_linux_banner(kallsym_t *info, char *img, int32_t imglen, void *opt)
 {
@@ -1099,23 +1120,15 @@ int decompress_data(const unsigned char *compressed_data, size_t compressed_size
 
 int dump_all_ikconfig(char *img, int32_t imglen)
 {
-    char *pos_start = memmem(img, imglen, IKCFG_ST, strlen(IKCFG_ST));
-    if (pos_start == NULL) {
-        fprintf(stderr, "Cannot find kernel config start (IKCFG_ST).\n");
+    size_t kcfg_start = 0;
+    size_t kcfg_bytes = 0;
+    int rc = find_ikconfig_blob(img, imglen, &kcfg_start, &kcfg_bytes);
+    if (rc) {
+        fprintf(stderr, "Cannot find kernel config blob, rc=%d.\n", rc);
         return 1;
     }
-    size_t kcfg_start = pos_start - img + 8;
 
-    // 查找 "IKCFG_ED"
-    char *pos_end = memmem(img, imglen, IKCFG_ED, strlen(IKCFG_ED));
-    if (pos_end == NULL) {
-        fprintf(stderr, "Cannot find kernel config end (IKCFG_ED).\n");
-        return 1;
-    }
-    size_t kcfg_end = pos_end - img - 1;
-    size_t kcfg_bytes = kcfg_end - kcfg_start + 1;
-
-    printf("Kernel config start: %zu, end: %zu, bytes: %zu\n", kcfg_start, kcfg_end, kcfg_bytes);
+    printf("Kernel config start: %zu, bytes: %zu\n", kcfg_start, kcfg_bytes);
 
     unsigned char *extracted_data = (unsigned char *)malloc(kcfg_bytes);
     if (!extracted_data) {
@@ -1129,6 +1142,63 @@ int dump_all_ikconfig(char *img, int32_t imglen)
 
     free(extracted_data);
 
+    return 0;
+}
+
+int extract_ikconfig(char *img, int32_t imglen, char **out, int32_t *outlen)
+{
+    size_t kcfg_start = 0;
+    size_t kcfg_bytes = 0;
+    int rc = find_ikconfig_blob(img, imglen, &kcfg_start, &kcfg_bytes);
+    if (rc) return rc;
+
+    uint64_t cap = 256 * 1024;
+    uint8_t *buf = NULL;
+    int ret = Z_BUF_ERROR;
+
+    while (cap <= 4 * 1024 * 1024) {
+        buf = malloc(cap + 1);
+        if (!buf) return -100;
+
+        z_stream strm = { 0 };
+        strm.next_in = (Bytef *)(img + kcfg_start);
+        strm.avail_in = (uInt)kcfg_bytes;
+        strm.next_out = buf;
+        strm.avail_out = (uInt)cap;
+
+        if (inflateInit2(&strm, 16 + MAX_WBITS) != Z_OK) {
+            free(buf);
+            return -101;
+        }
+
+        ret = inflate(&strm, Z_FINISH);
+        if (ret == Z_STREAM_END) {
+            cap = strm.total_out;
+            inflateEnd(&strm);
+            break;
+        }
+
+        inflateEnd(&strm);
+        free(buf);
+        buf = NULL;
+
+        if (ret != Z_BUF_ERROR) return ret;
+        cap *= 2;
+    }
+
+    if (!buf) return ret;
+
+    buf[cap] = '\0';
+    *outlen = (int32_t)align_ceil((int32_t)cap + 1, EXTRA_ALIGN);
+    char *aligned = calloc(1, *outlen);
+    if (!aligned) {
+        free(buf);
+        return -102;
+    }
+    memcpy(aligned, buf, cap + 1);
+    free(buf);
+
+    *out = aligned;
     return 0;
 }
 
