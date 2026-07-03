@@ -9,10 +9,12 @@
 #include <sha256.h>
 #include <symbol.h>
 #include <kconfig.h>
+#include <kpmalloc.h>
 
 #include "start.h"
 #include "pgtable.h"
 #include "baselib.h"
+#include "puff/puff.h"
 
 extern start_preset_t start_preset;
 
@@ -213,37 +215,89 @@ int kp_kconfig_size(void)
 }
 KP_EXPORT_SYMBOL(kp_kconfig_size);
 
-static int init_kconfig_extra(const patch_extra_item_t *extra, const char *arg, const void *con, void *udata)
+static int find_ikconfig_deflate(const uint8_t *gz, int64_t gz_len, const uint8_t **deflate_start,
+                                 unsigned long *deflate_len, unsigned long *out_len)
 {
-    (void)arg;
-    (void)udata;
+    if (gz_len < 18) return -1; // 10 header + 2 deflate + 8 trailer minimum
+    if (gz[0] != 0x1f || gz[1] != 0x8b || gz[2] != 0x08) return -2; // gzip magic + deflate method
 
-    if (extra->type != EXTRA_TYPE_KCONFIG) return 0;
+    uint8_t flg = gz[3];
+    const uint8_t *pos = gz + 10; // skip ID1,ID2,CM,FLG,MTIME[4],XFL,OS
 
-    kernel_config = con;
-    kernel_config_size = extra->con_size;
-    log_boot("kconfig extra found by scan, size: %d\n", kernel_config_size);
-    return 1;
+    if (flg & 0x04) { // FEXTRA
+        if (pos + 2 > gz + gz_len) return -3;
+        uint32_t xlen = (uint32_t)pos[0] | ((uint32_t)pos[1] << 8);
+        pos += 2 + xlen;
+    }
+    if (flg & 0x08) { // FNAME, NUL-terminated
+        while (pos < gz + gz_len && *pos) pos++;
+        if (pos >= gz + gz_len) return -4;
+        pos++;
+    }
+    if (flg & 0x10) { // FCOMMENT, NUL-terminated
+        while (pos < gz + gz_len && *pos) pos++;
+        if (pos >= gz + gz_len) return -5;
+        pos++;
+    }
+    if (flg & 0x02) { // FHCRC
+        pos += 2;
+    }
+
+    if (pos > gz + gz_len - 8) return -6; // need deflate + CRC32 + ISIZE
+
+    const uint8_t *trailer = gz + gz_len - 8;
+    *deflate_start = pos;
+    *deflate_len = (unsigned long)(trailer - pos);
+    *out_len = (unsigned long)((uint32_t)trailer[4] | ((uint32_t)trailer[5] << 8) |
+                               ((uint32_t)trailer[6] << 16) | ((uint32_t)trailer[7] << 24));
+    return 0;
 }
 
 static void ensure_kconfig_loaded(void)
 {
     if (kernel_config || kconfig_scan_done) return;
-    if (!_kp_extra_start || !_kp_extra_end || _kp_extra_start >= _kp_extra_end) return;
 
-    if (start_preset.kconfig_offset > 0 && start_preset.kconfig_size > 0 &&
-        start_preset.kconfig_offset + start_preset.kconfig_size <= start_preset.extra_size) {
-        kernel_config = (const char *)(_kp_extra_start + start_preset.kconfig_offset);
-        kernel_config_size = start_preset.kconfig_size;
-        kconfig_scan_done = 1;
-        log_boot("kconfig extra found by preset, offset: %lld, size: %d\n", start_preset.kconfig_offset,
-                 kernel_config_size);
+    int64_t off = start_preset.kconfig_offset;
+    int64_t gz_len = start_preset.kconfig_size;
+    kconfig_scan_done = 1;
+    if (!off || !gz_len) return;
+    if (off < 0 || gz_len < 0 || off > kernel_size || gz_len > kernel_size - off) {
+        log_boot("kconfig: bad preset range, off=%lld, size=%lld, kernel=%lld\n", off, gz_len, kernel_size);
         return;
     }
 
-    on_each_extra_item(init_kconfig_extra, 0);
-    kconfig_scan_done = 1;
-    if (!kernel_config) log_boot("kconfig extra not found\n");
+    const uint8_t *gz = (const uint8_t *)(kernel_va + off);
+    const uint8_t *deflate_start = NULL;
+    unsigned long deflate_len = 0, out_len = 0;
+    int rc = find_ikconfig_deflate(gz, gz_len, &deflate_start, &deflate_len, &out_len);
+    if (rc) {
+        log_boot("kconfig: gzip header parse failed, rc=%d\n", rc);
+        return;
+    }
+    if (!deflate_len || !out_len || out_len > (4 * 1024 * 1024)) {
+        log_boot("kconfig: bad sizes (deflate=%lu, out=%lu)\n", deflate_len, out_len);
+        return;
+    }
+
+    char *buf = kp_malloc(out_len + 1);
+    if (!buf) {
+        log_boot("kconfig: malloc failed for %lu bytes\n", out_len + 1);
+        return;
+    }
+
+    unsigned long destlen = out_len;
+    unsigned long sourcelen = deflate_len;
+    rc = puff((unsigned char *)buf, &destlen, deflate_start, &sourcelen);
+    if (rc != 0) {
+        log_boot("kconfig: puff failed, rc=%d\n", rc);
+        kp_free(buf);
+        return;
+    }
+
+    buf[destlen] = 0;
+    kernel_config = buf;
+    kernel_config_size = (int32_t)destlen;
+    log_boot("kconfig inflated from IKCFG, size: %lu -> %d\n", deflate_len, kernel_config_size);
 }
 
 int on_each_extra_item(int (*callback)(const patch_extra_item_t *extra, const char *arg, const void *con, void *udata),
@@ -304,7 +358,10 @@ void predata_init()
 
     patch_config = &start_preset.patch_config;
 
-    ensure_kconfig_loaded();
+    // kconfig is loaded lazily on first kp_kconfig_*() call (by a KPM, well
+    // after the kernel is up). Loading here in predata_init ran during the
+    // paging_init hook where the console/page tables aren't ready; a data
+    // abort there panics with no kmsg.
 
     for (uintptr_t addr = (uint64_t)patch_config; addr < (uintptr_t)patch_config + PATCH_CONFIG_LEN;
          addr += sizeof(uintptr_t)) {

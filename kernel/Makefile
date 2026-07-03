@@ -36,6 +36,8 @@ BASE_SRCS += base/fphook.c
 BASE_SRCS += base/hotpatch.c 
 BASE_SRCS += base/hmem.c 
 BASE_SRCS += base/predata.c 
+BASE_SRCS += base/puff/puff.c
+BASE_SRCS += base/puff/setjmp_aarch64.S
 BASE_SRCS += base/symbol.c 
 BASE_SRCS += base/baselib.c 
 BASE_SRCS += base/sha256.c 
@@ -72,6 +74,9 @@ ${TARGET}.elf: ${OBJS}
 
 base/sha256.o: base/sha256.c
 	${CC} $(CFLAGS) $(INCLUDE) -c -O0 -o $@ $<
+
+base/puff/puff.o: base/puff/puff.c
+	${CC} $(CFLAGS) $(INCLUDE) -c -O2 -DINFLATE_ALLOW_INVALID_DISTANCE_TOOFAR_ARRR -o $@ $<
 
 %.o: %.S
 	${CC} $(CFLAGS) $(INCLUDE) -c -o $@ $<

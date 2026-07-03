@@ -65,8 +65,8 @@ void print_usage(char **argv)
         "  -N, --extra-name NAME            Set name of previous extra item.\n"
         "  -V, --extra-event EVENT          Set trigger event of previous extra item.\n"
         "  -A, --extra-args ARGS            Set arguments of previous extra item.\n"
-        "  -D, --extra-detach               Detach previous extra item from patches.\n"
-        "\n";
+"  -D, --extra-detach               Detach previous extra item from patches.\n"
+"\n";
     fprintf(stdout, c, version, program_name);
 }
 

@@ -23,7 +23,7 @@
 #define IKCFG_ED "IKCFG_ED"
 #include "zlib.h"
 
-static int find_ikconfig_blob(char *img, int32_t imglen, size_t *start, size_t *size)
+int find_ikconfig_blob(char *img, int32_t imglen, size_t *start, size_t *size)
 {
     char *pos_start = memmem(img, imglen, IKCFG_ST, strlen(IKCFG_ST));
     if (!pos_start) return 1;

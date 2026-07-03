@@ -7,6 +7,7 @@
 #define _KP_TOOL_KALLSYM_H_
 
 #include <stdint.h>
+#include <stddef.h>
 
 // script/kallsym.c
 #define ARRAY_SIZE(arr) (sizeof(arr) / sizeof(arr[0]))
@@ -122,6 +123,7 @@ int analyze_kallsym_info(kallsym_t *info, char *img, int32_t imglen, enum arch_t
 int dump_all_symbols(kallsym_t *info, char *img);
 int dump_all_ikconfig(char *img, int32_t imglen);
 int extract_ikconfig(char *img, int32_t imglen, char **out, int32_t *outlen);
+int find_ikconfig_blob(char *img, int32_t imglen, size_t *start, size_t *size);
 int is_symbol_exists(kallsym_t *info, char *img, const char *symbol);
 int get_symbol_index_offset(kallsym_t *info, char *img, int32_t index);
 int get_symbol_offset_and_size(kallsym_t *info, char *img, char *symbol, int32_t *size);

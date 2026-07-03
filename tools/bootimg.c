@@ -112,6 +112,33 @@ int write_data_to_file(const char *path, const void *data, size_t size) {
     return 0;
 }
 
+int compress_raw_deflate(const uint8_t *in_data, int in_len, uint8_t **out_data, int *out_len) {
+    z_stream strm = {0};
+    if (deflateInit2(&strm, 9, Z_DEFLATED, -MAX_WBITS, 8, Z_DEFAULT_STRATEGY) != Z_OK)
+        return -1;
+
+    uint32_t max_out_size = deflateBound(&strm, in_len);
+    *out_data = malloc(max_out_size);
+    if (!*out_data) { deflateEnd(&strm); return -1; }
+
+    strm.next_in = (Bytef *)in_data;
+    strm.avail_in = in_len;
+    strm.next_out = *out_data;
+    strm.avail_out = max_out_size;
+
+    int ret = deflate(&strm, Z_FINISH);
+    if (ret != Z_STREAM_END) {
+        free(*out_data);
+        *out_data = NULL;
+        deflateEnd(&strm);
+        return -2;
+    }
+
+    *out_len = strm.total_out;
+    deflateEnd(&strm);
+    return 0;
+}
+
 int compress_gzip(const uint8_t *in_data, size_t in_size, uint8_t **out_data, uint32_t *out_size) {
     z_stream strm = {0};
     if (deflateInit2(&strm, 9, Z_DEFLATED, 16 + MAX_WBITS, 8, Z_DEFAULT_STRATEGY) != Z_OK) 

@@ -162,7 +162,6 @@ typedef int32_t extra_item_type;
 #define EXTRA_TYPE_EXEC 3
 #define EXTRA_TYPE_RAW 4
 #define EXTRA_TYPE_ANDROID_RC 5
-#define EXTRA_TYPE_KCONFIG 6
 
 #define EXTRA_TYPE_NONE_STR "none"
 #define EXTRA_TYPE_KPM_STR "kpm"
@@ -170,7 +169,6 @@ typedef int32_t extra_item_type;
 #define EXTRA_TYPE_EXEC_STR "exec"
 #define EXTRA_TYPE_RAW_STR "raw"
 #define EXTRA_TYPE_ANDROID_RC_STR "android_rc"
-#define EXTRA_TYPE_KCONFIG_STR "kconfig"
 
 // todo
 #define EXTRA_EVENT_PAGING_INIT "paging-init"
@@ -201,6 +199,7 @@ struct _patch_extra_item
             extra_item_type type;
             char name[EXTRA_NAME_LEN];
             char event[EXTRA_EVENT_LEN];
+            int32_t flags;
         };
         char _cap[PATCH_EXTRA_ITEM_LEN];
     };
