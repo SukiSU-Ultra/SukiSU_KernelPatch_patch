@@ -162,6 +162,7 @@ typedef int32_t extra_item_type;
 #define EXTRA_TYPE_EXEC 3
 #define EXTRA_TYPE_RAW 4
 #define EXTRA_TYPE_ANDROID_RC 5
+#define EXTRA_TYPE_KCONFIG_LEGACY 6
 
 #define EXTRA_TYPE_NONE_STR "none"
 #define EXTRA_TYPE_KPM_STR "kpm"
@@ -169,6 +170,7 @@ typedef int32_t extra_item_type;
 #define EXTRA_TYPE_EXEC_STR "exec"
 #define EXTRA_TYPE_RAW_STR "raw"
 #define EXTRA_TYPE_ANDROID_RC_STR "android_rc"
+#define EXTRA_TYPE_KCONFIG_LEGACY_STR "kconfig"
 
 // todo
 #define EXTRA_EVENT_PAGING_INIT "paging-init"
@@ -185,6 +187,15 @@ typedef int32_t extra_item_type;
 
 #define EXTRA_EVENT_PRE_SECOND_STAGE "pre-init-second-stage"
 #define EXTRA_EVENT_POST_SECOND_STAGE "post-init-second-stage"
+
+#define PATCH_EXTRA_HEADER_VERSION_LEGACY 0U
+#define PATCH_EXTRA_HEADER_VERSION_MAGIC 0x4B500000U
+#define PATCH_EXTRA_HEADER_VERSION_MASK 0xFFFF0000U
+#define PATCH_EXTRA_HEADER_VERSION_VALUE_MASK 0x0000FFFFU
+#define PATCH_EXTRA_FLAGS_GET_HEADER_VERSION(flags)                                                              \
+    ((((uint32_t)(flags) & PATCH_EXTRA_HEADER_VERSION_MASK) == PATCH_EXTRA_HEADER_VERSION_MAGIC)                \
+         ? ((uint32_t)(flags) & PATCH_EXTRA_HEADER_VERSION_VALUE_MASK)                                          \
+         : PATCH_EXTRA_HEADER_VERSION_LEGACY)
 
 struct _patch_extra_item
 {

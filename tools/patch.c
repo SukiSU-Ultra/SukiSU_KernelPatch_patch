@@ -13,7 +13,7 @@
 #include <assert.h>
 #include <string.h>
 #include <ctype.h>
-#include <stdint.h>
+#include <stddef.h>
 
 #include "kallsym.h"
 #include "bootimg.h"
@@ -121,9 +121,114 @@ const char *extra_type_str(extra_item_type extra_type)
         return EXTRA_TYPE_RAW_STR;
     case EXTRA_TYPE_ANDROID_RC:
         return EXTRA_TYPE_ANDROID_RC_STR;
+    case EXTRA_TYPE_KCONFIG_LEGACY:
+        return EXTRA_TYPE_KCONFIG_LEGACY_STR;
     default:
         return EXTRA_TYPE_NONE_STR;
     }
+}
+
+static bool header_backup_has_valid_primary_entry(const uint8_t *header_backup)
+{
+    uint32_t primary_entry = u32le(*(const uint32_t *)header_backup);
+    if ((primary_entry & 0xFC000000) == 0x14000000) return true;
+
+    if (!memcmp(header_backup, "MZ", 2)) {
+        primary_entry = u32le(*(const uint32_t *)(header_backup + 4));
+        if ((primary_entry & 0xFC000000) == 0x14000000) return true;
+    }
+
+    return false;
+}
+
+static uint32_t preset_version_num(const preset_t *preset)
+{
+    version_t ver = preset->header.kp_version;
+    return (ver.major << 16) + (ver.minor << 8) + ver.patch;
+}
+
+static void push_header_backup_candidate(size_t *candidates, int *candidate_num, size_t candidate)
+{
+    for (int i = 0; i < *candidate_num; i++) {
+        if (candidates[i] == candidate) return;
+    }
+    candidates[(*candidate_num)++] = candidate;
+}
+
+static const uint8_t *preset_header_backup(const preset_t *preset)
+{
+    const uint8_t *setup = (const uint8_t *)&preset->setup;
+    size_t candidates[4];
+    int candidate_num = 0;
+    size_t current_header_backup_offset = offsetof(setup_preset_t, header_backup);
+
+    uint32_t ver_num = preset_version_num(preset);
+    if (ver_num <= VERSION(0, 13, 1)) {
+        push_header_backup_candidate(candidates, &candidate_num, current_header_backup_offset - 16);
+        push_header_backup_candidate(candidates, &candidate_num, current_header_backup_offset);
+    } else {
+        push_header_backup_candidate(candidates, &candidate_num, current_header_backup_offset);
+        push_header_backup_candidate(candidates, &candidate_num, current_header_backup_offset - 16);
+    }
+
+    push_header_backup_candidate(candidates, &candidate_num, current_header_backup_offset - 8);
+
+    for (int i = 0; i < candidate_num; i++) {
+        const uint8_t *header_backup = setup + candidates[i];
+        if (header_backup_has_valid_primary_entry(header_backup)) return header_backup;
+    }
+
+    return setup + candidates[0];
+}
+
+static preset_t *find_patched_preset(const char *kimg, int kimg_len, int32_t *saved_kimg_len, int *align_kimg_len)
+{
+    const char *search_ptr = kimg;
+    int search_len = kimg_len;
+
+    while (search_len > 0) {
+        preset_t *candidate = get_preset(search_ptr, search_len);
+        if (!candidate) break;
+
+        int32_t candidate_saved_kimg_len = (int32_t)u64le(candidate->setup.kimg_size);
+        int candidate_align_kimg_len = (int)((const char *)candidate - kimg);
+        const uint8_t *header_backup = preset_header_backup(candidate);
+
+        if (candidate_align_kimg_len == (int)align_ceil(candidate_saved_kimg_len, SZ_4K) &&
+            header_backup_has_valid_primary_entry(header_backup)) {
+            if (saved_kimg_len) *saved_kimg_len = candidate_saved_kimg_len;
+            if (align_kimg_len) *align_kimg_len = candidate_align_kimg_len;
+            return candidate;
+        }
+
+        tools_logw("found magic string at 0x%x but saved kernel image size/header backup mismatch, ignoring\n",
+                   candidate_align_kimg_len);
+
+        search_ptr = (const char *)candidate + 1;
+        search_len = kimg_len - (int)(search_ptr - kimg);
+    }
+
+    return NULL;
+}
+
+static uint32_t extra_item_header_version(const patch_extra_item_t *item)
+{
+    return PATCH_EXTRA_FLAGS_GET_HEADER_VERSION(item->flags);
+}
+
+static void sanitize_legacy_extra_item(patch_extra_item_t *item)
+{
+    if (extra_item_header_version(item) == PATCH_EXTRA_HEADER_VERSION_LEGACY && item->flags) {
+        tools_logw("legacy extra item %s has dirty flags 0x%x, clearing for compatibility\n", item->name,
+                   (uint32_t)item->flags);
+        item->flags = 0;
+    }
+}
+
+static bool is_legacy_kconfig_extra(const patch_extra_item_t *item)
+{
+    return extra_item_header_version(item) == PATCH_EXTRA_HEADER_VERSION_LEGACY &&
+           item->type == EXTRA_TYPE_KCONFIG_LEGACY && !strcmp(item->name, EXTRA_TYPE_KCONFIG_LEGACY_STR);
 }
 
 static char *bytes_to_hexstr(const unsigned char *data, int len)
@@ -204,6 +309,16 @@ int parse_image_patch_info(const char *kimg, int kimg_len, patched_kimg_t *pimg)
     pimg->kimg = kimg;
     pimg->kimg_len = kimg_len;
 
+    preset_t *old_preset = NULL;
+    int32_t saved_kimg_len = 0;
+    int align_kimg_len = 0;
+
+    old_preset = find_patched_preset(kimg, kimg_len, &saved_kimg_len, &align_kimg_len);
+    if (old_preset) {
+        tools_logi("restore header backup before parsing patched kernel image\n");
+        memcpy((char *)kimg, preset_header_backup(old_preset), HDR_BACKUP_SIZE);
+    }
+
     // kernel image infomation
     kernel_info_t *kinfo = &pimg->kinfo;
     if (get_kernel_info(kinfo, kimg, kimg_len)) tools_loge_exit("get_kernel_info error\n");
@@ -221,32 +336,11 @@ int parse_image_patch_info(const char *kimg, int kimg_len, patched_kimg_t *pimg)
     }
     if (!pimg->banner) tools_loge_exit("can't find linux banner\n");
 
-    // patched or new
-    preset_t *old_preset = NULL;
-    const char *search_ptr = kimg;
-    int search_len = kimg_len;
-    int32_t saved_kimg_len = 0;
-    int align_kimg_len = 0;
-
-    while (search_len > 0) {
-        old_preset = get_preset(search_ptr, search_len);
-        if (!old_preset) break;
-
-        saved_kimg_len = old_preset->setup.kimg_size;
-        if (is_be() ^ kinfo->is_be) saved_kimg_len = i32swp(saved_kimg_len);
-
-        align_kimg_len = (char *)old_preset - kimg;
-        if (align_kimg_len == (int)align_ceil(saved_kimg_len, SZ_4K)) {
-            break;
+    if (!old_preset) {
+        old_preset = find_patched_preset(kimg, kimg_len, &saved_kimg_len, &align_kimg_len);
+        if (old_preset && (is_be() ^ kinfo->is_be)) {
+            saved_kimg_len = i32swp(saved_kimg_len);
         }
-
-        tools_logw("found magic string at 0x%x but saved kernel image size mismatch, ignoring (false positive?)\n",
-                   align_kimg_len);
-
-        // Search next
-        search_ptr = (char *)old_preset + 1;
-        search_len = kimg_len - (search_ptr - kimg);
-        old_preset = NULL;
     }
 
     pimg->preset = old_preset;
@@ -260,7 +354,7 @@ int parse_image_patch_info(const char *kimg, int kimg_len, patched_kimg_t *pimg)
     tools_logi("patched kernel image ...\n");
     pimg->ori_kimg_len = saved_kimg_len;
 
-    memcpy((char *)kimg, old_preset->setup.header_backup, sizeof(old_preset->setup.header_backup));
+    memcpy((char *)kimg, preset_header_backup(old_preset), HDR_BACKUP_SIZE);
 
     // extra
     int extra_offset = align_kimg_len + old_preset->setup.kpimg_size;
@@ -275,6 +369,15 @@ int parse_image_patch_info(const char *kimg, int kimg_len, patched_kimg_t *pimg)
         patch_extra_item_t *item = (patch_extra_item_t *)item_pos;
         if (strcmp(EXTRA_HDR_MAGIC, item->magic)) break;
         if (item->type == EXTRA_TYPE_NONE) break;
+        sanitize_legacy_extra_item(item);
+        if (is_legacy_kconfig_extra(item)) {
+            tools_logw("skip legacy embedded kconfig extra item during upgrade compatibility scan\n");
+            item_pos += sizeof(patch_extra_item_t);
+            item_pos += item->args_size;
+            item_pos += item->con_size;
+            continue;
+        }
+        if (pimg->embed_item_num >= EXTRA_ITEM_MAX_NUM) tools_loge_exit("too many embedded extra items\n");
         pimg->embed_item[pimg->embed_item_num++] = item;
         item_pos += sizeof(patch_extra_item_t);
         item_pos += item->args_size;
@@ -519,6 +622,7 @@ int patch_update_img(const char *kimg_path, const char *kpimg_path, const char *
                     item->args_size = i32swp(item->args_size);
                     item->flags = i32swp(item->flags);
                 }
+                sanitize_legacy_extra_item(item);
                 if (!config->set_args && item->args_size > 0) {
                     config->set_args = (char *)item + sizeof(*item);
                 }
