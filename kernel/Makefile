@@ -14,7 +14,7 @@ X86_CC ?= gcc
 X86_LD ?= ld
 X86_OBJCOPY ?= objcopy
 
-CFLAGS += -Wall -fno-builtin -std=gnu11 -nostdinc -mgeneral-regs-only
+CFLAGS += -Wall -fno-builtin -std=gnu11 -nostdinc -mgeneral-regs-only -ffixed-x18
 CFLAGS += -g
 CFLAGS += -Wno-unused-function -Wno-return-type -Wno-c23-extensions -Wno-uninitialized
 CFLAGS += -fno-PIC -fno-asynchronous-unwind-tables -fno-stack-protector -fno-unwind-tables -fno-semantic-interposition -U_FORTIFY_SOURCE -fno-common
