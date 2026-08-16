@@ -1384,10 +1384,7 @@ static void post_init_second_stage()
 
 static void on_first_app_process()
 {
-    /* Refresh the trusted-manager state (APK scan) synchronously here.  The scan
-     * itself is two-phase so it cannot deadlock on the /data/app inode lock. */
-    int rc = refresh_trusted_manager_state();
-    log_boot("on_first_app_process: trusted manager refresh rc=%d\n", rc);
+    refresh_trusted_manager_state();
 }
 
 static void handle_before_execve(hook_local_t *hook_local, char **__user u_filename_p, char **__user uargv,
