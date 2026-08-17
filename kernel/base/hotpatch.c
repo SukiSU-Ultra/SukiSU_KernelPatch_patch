@@ -22,6 +22,26 @@ static uintptr_t alias_pte = 0;
 
 int kfunc_def(aarch64_insn_patch_text_nosync)(void *addr, uint32_t insn) = 0;
 
+/*
+ * Text-patching backend selection, decided at runtime by kver.
+ *
+ * The hotpatch framework (stop_machine + the alias/aarch64_insn_patch_text_nosync
+ * trick) broke boot on 4.4/4.14: the alias path feeds a vmalloc alias address to
+ * the kernel's aarch64_insn_patch_text_nosync, whose patch_map() resolves it via
+ * virt_to_page() and writes to a bogus physical page.  Those kernels used to boot
+ * through the kernel's own aarch64_insn_patch_text(), which is what the legacy
+ * backend restores below.
+ *
+ * Legacy (4.14 and below): prefer the kernel's aarch64_insn_patch_text() (fixmap +
+ * stop_machine, the path KP used before the hotpatch migration); fall back to a
+ * direct page-table write only if it cannot be resolved.  5.0+ keep the hotpatch
+ * framework.
+ */
+static bool hotpatch_use_legacy(void)
+{
+    return kver < VERSION(4, 10, 0);
+}
+
 static void modify_entry_kernel(uintptr_t va, uintptr_t *entry, uintptr_t value)
 {
     if (!pte_valid_cont(*entry) && !pte_valid_cont(value)) {
