@@ -51,6 +51,9 @@ int bypass_selinux();
 int resolve_pt_regs();
 int supercall_install();
 void module_init();
+/* Capture SELinux policy loads from the boot path: the platform policy is
+ * loaded by init long before post-fs-data, so the hook must be in place now. */
+int selinux_sepolicy_boot_init();
 void syscall_init();
 void syscall_dispatch_init();
 int kstorage_init();
@@ -102,8 +105,7 @@ static void before_rest_init(hook_fargs4_t *args, void *udata)
     // 自己的逻辑
     init_sukisu_ultra();
 
-    // rc = selinux_hide_init();
-    // log_boot("selinux_hide_init done: %d\n", rc);
+    log_boot("selinux_sepolicy_boot_init: %d\n", selinux_sepolicy_boot_init());
 
     rc = resolve_pt_regs();
     log_boot("resolve_pt_regs done: %d\n", rc);
