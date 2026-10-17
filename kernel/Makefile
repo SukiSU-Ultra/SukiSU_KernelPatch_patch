@@ -1,14 +1,14 @@
 ifndef TARGET_COMPILE
-    TARGET_COMPILE=$(ANDROID_NDK_HOME)/toolchains/llvm/prebuilt/linux-x86_64/bin
+    $(error TARGET_COMPILE not set)
 endif
 
 TARGET=kpimg
 X86_TARGET=kpimg-x86
 
-CC = $(TARGET_COMPILE)/aarch64-linux-android35-clang
-LD = $(TARGET_COMPILE)/ld.lld
-AS = $(TARGET_COMPILE)/llvm-as
-OBJCOPY = $(TARGET_COMPILE)/llvm-objcopy
+CC = $(TARGET_COMPILE)gcc
+LD = $(TARGET_COMPILE)ld
+AS = $(TARGET_COMPILE)as
+OBJCOPY = $(TARGET_COMPILE)objcopy
 
 X86_CC ?= gcc
 X86_LD ?= ld
@@ -16,8 +16,6 @@ X86_OBJCOPY ?= objcopy
 
 CFLAGS += -Wall -fno-builtin -std=gnu11 -nostdinc -mgeneral-regs-only -ffixed-x18
 CFLAGS += -g
-CFLAGS += -Wno-unused-function -Wno-return-type -Wno-c23-extensions -Wno-uninitialized
-CFLAGS += -fno-PIC -fno-asynchronous-unwind-tables -fno-stack-protector -fno-unwind-tables -fno-semantic-interposition -U_FORTIFY_SOURCE -fno-common
 
 # kpimg-x86 links at 0 and runs from wherever it was injected, and the linker
 # script keeps no relocations, so every reference has to be RIP-relative.
@@ -33,12 +31,10 @@ ifdef DEBUG
 	X86_CFLAGS += -DDEBUG -g
 endif
 
-# ifdef ANDROID
-	CFLAGS += -DANDROID
-	X86_CFLAGS += -DANDROID
-# endif
+CFLAGS += -DANDROID
+X86_CFLAGS += -DANDROID
 
-INCLUDE := -I. -Iinclude -Ipatch/include -Ilinux -Ilinux/include -Ilinux/arch/arm64/include -Ilinux/tools/arch/arm64/include -Ikernel-source -I$(TARGET_COMPILE)/../sysroot/usr/include -I$(TARGET_COMPILE)/../sysroot/usr/include/aarch64-linux-android
+INCLUDE := -I. -Iinclude -Ipatch/include -Ilinux -Ilinux/include -Ilinux/arch/arm64/include -Ilinux/tools/arch/arm64/include
 
 X86_INCLUDE := -I. -Iinclude -Ipatch/include -Ilinux/include -Ilinux/include/uapi/asm-generic -Ilinux/tools/arch/arm64/include
 
@@ -77,7 +73,10 @@ OBJS := $(SRCS:.c=.o)
 OBJS := $(OBJS:.S=.o)
 
 X86_OBJS := x86/setup.x86.o x86/entry.x86.o x86/x86_start.x86.o
-LDFLAGS += -Tkpimg.lds --no-relax
+
+# Shared C sources compiled with the x86 toolchain
+# hmem.c depends on hook.h (ARM64 — skip for now)
+
 
 all: ${TARGET}
 

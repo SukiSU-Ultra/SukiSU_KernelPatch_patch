@@ -1096,6 +1096,17 @@ int kp_get_module_info(const char *name, char *out_info, int size)
 	return sz;
 }
 
+/* Export KPM entry points so other LKM modules (e.g. SukiSU-Ultra) can
+ * call them through the kernel's module symbol table. Without these,
+ * kallsyms_lookup_name() / __symbol_get() return NULL on kernels built
+ * with CONFIG_KALLSYMS_ALL=n (typical production/branch builds). */
+EXPORT_SYMBOL(kp_load_module_path);
+EXPORT_SYMBOL(kp_unload_module);
+EXPORT_SYMBOL(kp_module_control0);
+EXPORT_SYMBOL(kp_get_module_nums);
+EXPORT_SYMBOL(kp_list_modules);
+EXPORT_SYMBOL(kp_get_module_info);
+
 int kp_kpm_init(void)
 {
 	INIT_LIST_HEAD(&modules.list);

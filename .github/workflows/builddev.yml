@@ -81,10 +81,16 @@ jobs:
         if [ -f kptools ]; then
           mv kptools kptools-linux
         fi
+
+    - name: Install Compiler
+      run: |
+        curl -o arm-gnu-toolchain-12.2.rel1-x86_64-aarch64-none-elf.tar.xz https://armkeil.blob.core.windows.net/developer/Files/downloads/gnu/12.2.rel1/binrel/arm-gnu-toolchain-12.2.rel1-x86_64-aarch64-none-elf.tar.xz
+        tar -Jxf arm-gnu-toolchain-12.2.rel1-x86_64-aarch64-none-elf.tar.xz
         
     - name: Build kernel kpimg
-      working-directory: ./kernel
       run: |
+        export TARGET_COMPILE=`pwd`/arm-gnu-toolchain-12.2.rel1-x86_64-aarch64-none-elf/bin/aarch64-none-elf-
+        cd kernel
         make clean || true
         make -j$(nproc) || echo "Kernel build had some issues, continuing..."
 
