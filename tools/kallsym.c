@@ -891,7 +891,7 @@ static int correct_addresses_or_offsets_by_vectors(kallsym_t *info, char *img, i
     } else {
         info->kallsyms_addresses_offset = pos;
         tools_logi("kallsyms_addresses offset: 0x%08x\n", pos);
-        tools_logi("kernel base address: 0x%08" PRIx64 "\n", info->kernel_base);
+        tools_logi("kernel base address: 0x%08llx\n", info->kernel_base);
     }
 
     return 0;
@@ -969,7 +969,7 @@ static int correct_addresses_or_offsets_by_banner(kallsym_t *info, char *img, in
         info->kallsyms_addresses_offset = pos;
         tools_logi("kallsyms_addresses offset: 0x%08x\n", pos);
         info->kernel_base = uint_unpack(img + info->kallsyms_addresses_offset, elem_size, info->is_be);
-        tools_logi("kernel base address: 0x%" PRIx64 "\n", info->kernel_base);
+        tools_logi("kernel base address: 0x%llx\n", info->kernel_base);
     }
 
     if (info->arch == ARM64) {

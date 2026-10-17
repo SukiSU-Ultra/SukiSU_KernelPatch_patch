@@ -8,8 +8,6 @@
 
 #include <asm-generic/module.h>
 #include <kpmodule.h>
-#include <kputils.h>
-#include <baselib.h>
 
 struct load_info
 {
