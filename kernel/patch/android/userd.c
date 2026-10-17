@@ -1559,7 +1559,10 @@ static void post_init_second_stage()
 
 static void on_first_app_process()
 {
-    refresh_trusted_manager_state();
+    /* Refresh the trusted-manager state (APK scan) synchronously here.  The scan
+     * itself is two-phase so it cannot deadlock on the /data/app inode lock. */
+    int rc = refresh_trusted_manager_state();
+    log_boot("on_first_app_process: trusted manager refresh rc=%d\n", rc);
 }
 
 static void handle_before_execve(hook_local_t *hook_local, char **__user u_filename_p, char **__user uargv,
@@ -1985,4 +1988,49 @@ int android_user_init()
     }
 
     return ret;
+}
+
+/* sucompat_init() is invoked from report_user_event() at post-fs-data "before"
+ * (see patch/common/user_event.c).  The path-probe hooks on fstatat/faccessat
+ * declared in sucompat.h are still TODO in this branch; for now the function
+ * only makes the symbol resolvable so the kpimg links.  When those hooks land,
+ * gate their hook_wrap calls on the post-fs-data event flag (e.g. an atomic
+ * "data ready" flag set by the post-fs-data event) instead of running at module
+ * load, so /data/adb is already mounted when the hooks fire. */
+void sucompat_init(void)
+{
+    log_boot("sucompat_init: path-probe hooks not yet implemented\n");
+}
+
+/* is_trusted_manager_uid() is the cross-platform alias used by execve hook
+ * logic in userd.c (handle_before_execve).  It currently forwards to the
+ * Android-only is_trusted_manager_uid_android(); the declaration sits
+ * outside the #ifdef ANDROID block in userd.h so the symbol must exist
+ * unconditionally.  userd.c is only built on Android (see kernel/Makefile),
+ * so the forward is always live. */
+int is_trusted_manager_uid(uid_t uid)
+{
+    return is_trusted_manager_uid_android(uid);
+}
+
+/* su_add_allow_uid() / set_ap_mod_exclude() are the per-uid allowlist and
+ * module-exclude APIs that load_ap_package_config() drives from
+ * /data/adb/ap/package_config.  The full implementation lives behind the
+ * sucompat path-probe hooks (still TODO); for now su_add_allow_uid()
+ * returns -ENOSYS so the caller (load_ap_package_config) bumps
+ * skipped_count and doesn't report a misleading "loaded" line, and
+ * set_ap_mod_exclude() is a no-op (its return value isn't checked at
+ * the call site). */
+int su_add_allow_uid(uid_t uid, uid_t to_uid, const char *scontext)
+{
+    log_boot("su_add_allow_uid: not yet implemented (uid=%u to_uid=%u sctx=%s)\n",
+             (unsigned int)uid, (unsigned int)to_uid, scontext ? scontext : "(null)");
+    return -ENOSYS;
+}
+
+int set_ap_mod_exclude(uid_t uid, int exclude)
+{
+    log_boot("set_ap_mod_exclude: not yet implemented (uid=%u exclude=%d)\n",
+             (unsigned int)uid, exclude);
+    return 0;
 }

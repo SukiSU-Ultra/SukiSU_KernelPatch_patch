@@ -1,4 +1,5 @@
 CFLAGS = -std=c11 -Wall -Wextra -Wno-unused -Wno-unused-parameter
+
 CFLAGS += -I. -I./lib -DBZ_NO_STDIO -DXZ_DEC_ANY_CHECK
 LDFLAGS = -static -lz
 
@@ -30,7 +31,6 @@ kptools.o: ../version
 clean:
 	rm -rf kptools
 	rm *.o
-	
 	rm lib/bz2/*.o
 	rm lib/lz4/*.o
 	rm lib/sha/*.o

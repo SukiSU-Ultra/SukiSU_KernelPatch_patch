@@ -5,6 +5,7 @@
 
 #include <hotpatch.h>
 #include <cache.h>
+#include <common.h>
 #include <ksyms.h>
 #include <symbol.h>
 #include <pgtable.h>
@@ -21,6 +22,7 @@ static uintptr_t *alias_entry = 0;
 static uintptr_t alias_pte = 0;
 
 int kfunc_def(aarch64_insn_patch_text_nosync)(void *addr, uint32_t insn) = 0;
+int kfunc_def(aarch64_insn_patch_text)(void *addrs[], uint32_t insns[], int cnt) = 0;
 
 /*
  * Text-patching backend selection, decided at runtime by kver.
@@ -65,7 +67,7 @@ int hotpatch_nosync(void *addr, uint32_t value)
 {
     uintptr_t tp = (uintptr_t)addr;
     if (tp & 0x3) return -EINVAL;
-    if (kfunc(aarch64_insn_patch_text_nosync) && alias_pte) {
+    if (!hotpatch_use_legacy() && kfunc(aarch64_insn_patch_text_nosync) && alias_pte) {
         // todo: fixmap
         uintptr_t phys = pgtable_phys_kernel(tp);
         if (!phys) return -EFAULT;
@@ -156,6 +158,7 @@ KP_EXPORT_SYMBOL(hotpatch);
 static void _arch_arm64_text_patching_init(const char *name, unsigned long addr)
 {
     kfunc_match(aarch64_insn_patch_text_nosync, name, addr);
+    kfunc_match(aarch64_insn_patch_text, name, addr);
 }
 
 static int _hotpatch_symbol_init(void *data, const char *name, struct module *m, unsigned long addr)
@@ -186,7 +189,6 @@ int hotpatch_init()
         alias_entry = pgtable_entry_kernel((uintptr_t)alias_page);
         if (alias_entry) alias_pte = *alias_entry;
     }
-    log_boot("alias_page: %llx\n", alias_page);
-    log_boot("alias_pte: %llx\n", alias_pte);
+    log_boot("hotpatch backend: framework (alias_page: %llx, alias_pte: %llx)\n", alias_page, alias_pte);
     return 0;
 }

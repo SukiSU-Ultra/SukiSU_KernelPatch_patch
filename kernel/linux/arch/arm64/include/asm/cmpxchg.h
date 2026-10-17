@@ -18,7 +18,7 @@
 #ifndef __ASM_CMPXCHG_H
 #define __ASM_CMPXCHG_H
 
-#include <barrier.h>
+#include <asm/barrier.h>
 #include <ktypes.h>
 
 static inline unsigned long __xchg(unsigned long x, volatile void *ptr, int size)

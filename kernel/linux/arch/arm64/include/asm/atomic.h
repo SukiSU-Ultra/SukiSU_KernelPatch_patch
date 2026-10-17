@@ -20,7 +20,7 @@
 #ifndef __ASM_ATOMIC_H
 #define __ASM_ATOMIC_H
 
-#include <barrier.h>
+#include <asm/barrier.h>
 #include <asm/cmpxchg.h>
 #include <linux/compiler.h>
 

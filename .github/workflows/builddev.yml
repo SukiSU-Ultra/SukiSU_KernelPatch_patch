@@ -199,6 +199,7 @@ jobs:
         echo "Checking artifacts before upload:"
         ls -la patch_android 2>/dev/null || echo "patch_android not found"
         ls -la patch_linux 2>/dev/null || echo "patch_linux not found"
+        ls -la kernel/kpimg 2>/dev/null || echo "kernel/kpimg not found"
         echo "Patch directory contents:"
         ls -la patch/res/ 2>/dev/null || echo "patch/res/ not found"
         echo "Include directory contents:"
@@ -211,6 +212,7 @@ jobs:
         path: |
           patch_android
           patch_linux
+          kernel/kpimg
           patch/res/kpimg
           patch/res/kpimg.enc
           patch/res/kptools-android

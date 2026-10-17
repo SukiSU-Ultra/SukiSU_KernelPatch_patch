@@ -1,5 +1,5 @@
 cmake_minimum_required(VERSION 3.5)
-project(kptools)
+project (kptools)
 
 file(GLOB_RECURSE LIB_SOURCES "lib/*.c")
 

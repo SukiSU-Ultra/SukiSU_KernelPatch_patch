@@ -65,7 +65,7 @@ BASE_SRCS += $(wildcard patch/common/*.c)
 BASE_SRCS += $(wildcard patch/module/*.c)
 BASE_SRCS += $(wildcard patch/ksyms/*.c)
 
-BASE_SRCS += patch/android/sepolicy_flags.c
+BASE_SRCS += $(wildcard patch/android/*.c)
 
 BASE_SRCS += $(wildcard patch/sukisu/*.c)
 

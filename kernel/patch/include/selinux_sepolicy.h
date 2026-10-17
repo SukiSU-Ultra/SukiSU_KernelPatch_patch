@@ -56,6 +56,13 @@ void selinux_sepolicy_compute_av_user(u32 ssid, u32 tsid, u16 tclass, struct av_
 u32 selinux_sepolicy_clean_seq(void);
 #define KP_AVD_CLEAN_SEQNO 1
 
+/* Scope guard for hooking the live policy context/access/setprocattr paths
+ * through the clean policydb copy.  enter() returns 0 on success (and the
+ * caller MUST pair it with leave() on every return path); returns -EAGAIN
+ * if a nested scope is already active. */
+int selinux_sepolicy_clean_eval_enter(void);
+void selinux_sepolicy_clean_eval_leave(void);
+
 /* The queries above compute entirely against the deep copy (KernelSU style);
  * no redirect scope is needed or provided any more. */
 

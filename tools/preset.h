@@ -27,9 +27,19 @@
 
 #define CONFIG_DEBUG (1 << 0)
 #define CONFIG_ANDROID (1 << 1)
+#define CONFIG_FLAG_X86_64 (1 << 2)
 
-#define MAP_SYMBOL_NUM (5)
+#define KP_X86_ENTRY_OFFSET 0x600
+
+#define MAP_SYMBOL_NUM (7)
 #define MAP_SYMBOL_SIZE (MAP_SYMBOL_NUM * 8)
+
+#define MAP_SYM_MEMBLOCK_PHYS_ALLOC_TRY_NID 1
+#define MAP_SYM_MEMBLOCK_ALLOC_TRY_NID 2
+#define MAP_SYM_MEMBLOCK_FIND_IN_RANGE 3
+
+#define MAP_SYM_MEMBLOCK_VIRT_ALLOC_TRY_NID 1
+#define MAP_SYM_MEMBLOCK_VIRT_ALLOC_FROM_ALLOC_TRY_NID 2
 
 #define PATCH_CONFIG_LEN (512)
 
@@ -90,6 +100,8 @@ struct map_symbol
             uint64_t memblock_phys_alloc_relo;
             uint64_t memblock_virt_alloc_relo;
             uint64_t memblock_mark_nomap_relo;
+            uint64_t memblock_phys_alloc_type;
+            uint64_t memblock_virt_alloc_type;
         };
         char _cap[MAP_SYMBOL_SIZE];
     };
@@ -151,6 +163,7 @@ typedef int32_t extra_item_type;
 #define EXTRA_TYPE_EXEC 3
 #define EXTRA_TYPE_RAW 4
 #define EXTRA_TYPE_ANDROID_RC 5
+#define EXTRA_TYPE_KCONFIG_LEGACY 6
 
 #define EXTRA_TYPE_NONE_STR "none"
 #define EXTRA_TYPE_KPM_STR "kpm"
@@ -158,6 +171,7 @@ typedef int32_t extra_item_type;
 #define EXTRA_TYPE_EXEC_STR "exec"
 #define EXTRA_TYPE_RAW_STR "raw"
 #define EXTRA_TYPE_ANDROID_RC_STR "android_rc"
+#define EXTRA_TYPE_KCONFIG_LEGACY_STR "kconfig"
 
 // todo
 #define EXTRA_EVENT_PAGING_INIT "paging-init"
@@ -175,6 +189,15 @@ typedef int32_t extra_item_type;
 #define EXTRA_EVENT_PRE_SECOND_STAGE "pre-init-second-stage"
 #define EXTRA_EVENT_POST_SECOND_STAGE "post-init-second-stage"
 
+#define PATCH_EXTRA_HEADER_VERSION_LEGACY 0U
+#define PATCH_EXTRA_HEADER_VERSION_MAGIC 0x4B500000U
+#define PATCH_EXTRA_HEADER_VERSION_MASK 0xFFFF0000U
+#define PATCH_EXTRA_HEADER_VERSION_VALUE_MASK 0x0000FFFFU
+#define PATCH_EXTRA_FLAGS_GET_HEADER_VERSION(flags)                                                              \
+    ((((uint32_t)(flags) & PATCH_EXTRA_HEADER_VERSION_MASK) == PATCH_EXTRA_HEADER_VERSION_MAGIC)                \
+         ? ((uint32_t)(flags) & PATCH_EXTRA_HEADER_VERSION_VALUE_MASK)                                          \
+         : PATCH_EXTRA_HEADER_VERSION_LEGACY)
+
 struct _patch_extra_item
 {
     union
@@ -188,6 +211,7 @@ struct _patch_extra_item
             extra_item_type type;
             char name[EXTRA_NAME_LEN];
             char event[EXTRA_EVENT_LEN];
+            int32_t flags;
         };
         char _cap[PATCH_EXTRA_ITEM_LEN];
     };
@@ -242,7 +266,13 @@ typedef struct _setup_preset_t
     uint8_t header_backup[HDR_BACKUP_SIZE];
     uint8_t superkey[SUPER_KEY_LEN];
     uint8_t root_superkey[ROOT_SUPER_KEY_HASH_LEN];
-    uint8_t __[SETUP_PRESERVE_LEN];
+    int64_t sprintf_offset;
+    int64_t symbol_lookup_anchor_offset;
+    int64_t kconfig_offset;
+    int64_t kconfig_size;
+    int64_t btf_offset;
+    int64_t btf_size;
+    uint8_t __[SETUP_PRESERVE_LEN - 48];
     patch_config_t patch_config;
     char additional[ADDITIONAL_LEN];
 } setup_preset_t;
@@ -264,6 +294,12 @@ typedef struct _setup_preset_t
 #define setup_header_backup_offset (setup_map_symbol_offset + MAP_SYMBOL_SIZE)
 #define setup_superkey_offset (setup_header_backup_offset + HDR_BACKUP_SIZE)
 #define setup_root_superkey_offset (setup_superkey_offset + SUPER_KEY_LEN)
+#define setup_sprintf_offset_offset (setup_root_superkey_offset + ROOT_SUPER_KEY_HASH_LEN)
+#define setup_symbol_lookup_anchor_offset_offset (setup_sprintf_offset_offset + 8)
+#define setup_kconfig_offset_offset (setup_symbol_lookup_anchor_offset_offset + 8)
+#define setup_kconfig_size_offset (setup_kconfig_offset_offset + 8)
+#define setup_btf_offset_offset (setup_kconfig_size_offset + 8)
+#define setup_btf_size_offset (setup_btf_offset_offset + 8)
 #define setup_patch_config_offset (setup_root_superkey_offset + ROOT_SUPER_KEY_HASH_LEN + SETUP_PRESERVE_LEN)
 #define setup_end (setup_patch_config_offset + PATCH_CONFIG_LEN)
 #endif
