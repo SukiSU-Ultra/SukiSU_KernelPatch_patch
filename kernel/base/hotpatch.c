@@ -21,6 +21,7 @@ static uintptr_t *alias_entry = 0;
 static uintptr_t alias_pte = 0;
 
 int kfunc_def(aarch64_insn_patch_text_nosync)(void *addr, uint32_t insn) = 0;
+int kfunc_def(aarch64_insn_patch_text)(void *addrs[], uint32_t insns[], int cnt) = 0;
 
 /*
  * Text-patching backend selection, decided at runtime by kver.
@@ -156,6 +157,7 @@ KP_EXPORT_SYMBOL(hotpatch);
 static void _arch_arm64_text_patching_init(const char *name, unsigned long addr)
 {
     kfunc_match(aarch64_insn_patch_text_nosync, name, addr);
+    kfunc_match(aarch64_insn_patch_text, name, addr);
 }
 
 static int _hotpatch_symbol_init(void *data, const char *name, struct module *m, unsigned long addr)

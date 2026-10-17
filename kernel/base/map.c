@@ -467,7 +467,8 @@ static uint64_t install_kp_linear(map_data_t *data, scratch_t *sc)
 
 void __noinline _paging_init()
 {
-    map_data_t *data = mem_proc();
+    map_data_t *data = &map_data;
+    mem_proc(data);
 #ifdef MAP_DEBUG
     printk_f printk = (printk_f)(data->printk_relo);
 #define map_debug(idx, val) printk(data->str_fmt_px, idx, val)
