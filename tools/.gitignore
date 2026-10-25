@@ -29,7 +29,6 @@ Makefile
 
 build/*
 
-preset.h
 kptools
 kptools.exe
 
