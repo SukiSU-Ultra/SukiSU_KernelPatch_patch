@@ -12,6 +12,7 @@
 #include <predata.h>
 #include <symbol.h>
 #include <linux/string.h>
+#include "sukisu/supercall.h"
 
 void print_bootlog()
 {
@@ -49,7 +50,6 @@ int hotpatch_init();
 int bypass_kcfi();
 int bypass_selinux();
 int resolve_pt_regs();
-int supercall_install();
 void module_init();
 /* Capture SELinux policy loads from the boot path: the platform policy is
  * loaded by init long before post-fs-data, so the hook must be in place now. */
@@ -65,7 +65,6 @@ int android_user_init();
 int android_sepolicy_flags_fix();
 #endif
 
-void init_sukisu_ultra();
 
 static void before_rest_init(hook_fargs4_t *args, void *udata)
 {
@@ -78,8 +77,7 @@ static void before_rest_init(hook_fargs4_t *args, void *udata)
     if ((rc = bypass_kcfi())) goto out;
     log_boot("bypass_kcfi done: %d\n", rc);
 
-    /* Must precede supercall_install/su_compat_init so their hook_syscalln
-     * calls register with the dispatcher instead of patching the table. */
+    /* Initialize dispatch before installing syscall override callbacks. */
     syscall_dispatch_init();
 
     if ((rc = resolve_struct())) goto out;
@@ -95,6 +93,10 @@ static void before_rest_init(hook_fargs4_t *args, void *udata)
     // rc = supercall_install();
     // log_boot("supercall_install done: %d\n", rc);
 
+    /* Independent KPM channel: SukiSU may only appear later as an LKM. */
+    rc = sukisu_kpm_supercall_install();
+    log_boot("sukisu_kpm_supercall_install done: %d\n", rc);
+
     rc = kstorage_init();
     log_boot("kstorage_init done: %d\n", rc);
 
@@ -103,7 +105,7 @@ static void before_rest_init(hook_fargs4_t *args, void *udata)
     // log_boot("su_compat_init done: %d\n", rc);
 
     // 自己的逻辑
-    init_sukisu_ultra();
+    /* Both SukiSU modes use the kernel KPM bridge installed above. */
 
     log_boot("selinux_sepolicy_boot_init: %d\n", selinux_sepolicy_boot_init());
 
