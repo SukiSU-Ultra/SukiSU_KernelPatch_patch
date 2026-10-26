@@ -16,7 +16,8 @@
 #define SUKISU_KPM_SUPERCALL_MAGIC3 0x53554b494e544552UL
 /* x6=magic2, x7=magic3, x8=ABI version; x9..x30 reserved (zero).
  * Internal synthetic pt_regs only; the userspace extension ABI is unchanged.
- * No fallback to v1: rebuild KernelPatch and SukiSU together.
+ * Event-aware loading is an optional operation; older SukiSU callers remain
+ * compatible with the ABI and newer callers can fall back when op 8 is absent.
  */
 #define SUKISU_KPM_OUTPUT_MAX 4096
 #define SUKISU_KPM_LOAD 1
@@ -26,8 +27,9 @@
 #define SUKISU_KPM_INFO 5
 #define SUKISU_KPM_CONTROL 6
 #define SUKISU_KPM_VERSION 7
+#define SUKISU_KPM_LOAD_EVENT 8
 #define SUKISU_KPM_PROBE 0
-#define SUKISU_KPM_ABI_VERSION 1
+#define SUKISU_KPM_ABI_VERSION 2
 
 int sukisu_kpm_supercall_install(void);
 #endif

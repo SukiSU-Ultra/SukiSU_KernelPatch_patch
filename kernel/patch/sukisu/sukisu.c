@@ -49,6 +49,11 @@ static long dispatch(unsigned long op, unsigned long a1, unsigned long a2,
         if (a4) return -EINVAL;
         if (!a1) return -EINVAL;
         return load_module_path((const char *)a1, (const char *)a2, (void *)a3);
+    case SUKISU_KPM_LOAD_EVENT:
+        if (a4) return -EINVAL;
+        if (!a1 || !a3) return -EINVAL;
+        return load_module_path_event((const char *)a1, (const char *)a2,
+                                      (const char *)a3, (void *)a4);
     case SUKISU_KPM_UNLOAD:
         if (a3 || a4) return -EINVAL;
         if (!a1) return -EINVAL;
