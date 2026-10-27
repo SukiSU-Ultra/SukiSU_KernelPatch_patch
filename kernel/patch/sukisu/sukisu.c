@@ -11,8 +11,6 @@
 #include <linux/rculist.h>
 #include <linux/rcupdate.h>
 
-#include "../../base/hmem.h"
-
 static long list_snapshot(char *buf, int capacity)
 {
     extern struct module modules;
@@ -36,57 +34,6 @@ static long list_snapshot(char *buf, int capacity)
     return used;
 }
 
-static const char *hook_kind_name(uint32_t type)
-{
-    switch (type) {
-    case INLINE:
-        return "inline";
-    case INLINE_CHAIN:
-        return "inline_chain";
-    case FUNCTION_POINTER_CHAIN:
-        return "fp_chain";
-    default:
-        return "none";
-    }
-}
-
-/*
- * Text, not a struct: the two sides of this bridge are built from separate
- * headers and released independently, so a packed layout would couple them.
- *
- *   HOOK_LIST_V1 total=<installed> shown=<lines below>
- *   type=<inline|inline_chain|fp_chain> origin=0x<addr>
- *
- * Read from the registry the allocator maintains, so this touches no hook
- * memory and costs a fixed copy plus a few dozen `snprintf` calls. The caller
- * turns addresses into names.
- */
-static long hook_list_text(char *out, long capacity)
-{
-    kp_hook_reg_entry_t entries[KP_HOOK_REG_MAX];
-    int total, shown;
-    long used;
-    int len;
-
-    total = kp_hook_reg_snapshot(entries, KP_HOOK_REG_MAX);
-    shown = total > KP_HOOK_REG_MAX ? KP_HOOK_REG_MAX : total;
-
-    len = snprintf(out, capacity, "HOOK_LIST_V1 total=%d shown=%d", total, shown);
-    if (len < 0) return -EINVAL;
-    if (len >= capacity) return -ENOBUFS;
-    used = len;
-
-    for (int i = 0; i < shown; i++) {
-        len = snprintf(out + used, capacity - used, "\ntype=%s origin=0x%llx",
-                       hook_kind_name(entries[i].type),
-                       (unsigned long long)entries[i].origin);
-        if (len < 0) return -EINVAL;
-        if (len >= capacity - used) return -ENOBUFS;
-        used += len;
-    }
-    return used;
-}
-
 /* All strings/output buffers here are kernel-owned, except ctl0 output and
  * the loader reserved field, which retain their original userspace ABI. */
 static long dispatch(unsigned long op, unsigned long a1, unsigned long a2,
@@ -98,13 +45,6 @@ static long dispatch(unsigned long op, unsigned long a1, unsigned long a2,
     case SUKISU_KPM_PROBE:
         if (a1 || a2 || a3 || a4) return -EINVAL;
         return SUKISU_KPM_ABI_VERSION;
-    case SUKISU_KPM_HOOKS:
-        if (a3 || a4) return -EINVAL;
-        out = (char *)a1;
-        capacity = (long)a2;
-        if (!out || capacity <= 0 || capacity > SUKISU_KPM_OUTPUT_MAX) return -EINVAL;
-        out[0] = '\0';
-        return hook_list_text(out, capacity);
     case SUKISU_KPM_LOAD:
         if (a4) return -EINVAL;
         if (!a1) return -EINVAL;
@@ -139,8 +79,7 @@ static long dispatch(unsigned long op, unsigned long a1, unsigned long a2,
             /* Legacy INFO has a fixed buffer and no size negotiation. */
             if (rc >= capacity) rc = capacity - 1;
         } else {
-            rc = snprintf(out, capacity, "%u (%s) hooks=%u", kpver, get_build_time(),
-                          (unsigned)SUKISU_KPM_HOOK_PROTO);
+            rc = snprintf(out, capacity, "%u (%s)", kpver, get_build_time());
         }
         return rc >= capacity ? -ENOBUFS : rc;
     default:
