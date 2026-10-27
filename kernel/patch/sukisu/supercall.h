@@ -28,6 +28,15 @@
 #define SUKISU_KPM_CONTROL 6
 #define SUKISU_KPM_VERSION 7
 #define SUKISU_KPM_LOAD_EVENT 8
+/* Installed hook list. Answered from hmem's own registry, never by reading
+ * the hook memory region. Op 9 stays reserved for the snapshot SukiSU answers
+ * locally and never forwards. */
+#define SUKISU_KPM_HOOKS 10
+/* Reported by SUKISU_KPM_VERSION as `hooks=<n>`: proves which hook-list
+ * implementation is running. Bump when its output changes.
+ *   1,2: read the hook memory region (froze devices, withdrawn)
+ *   3: read the allocation-time registry instead */
+#define SUKISU_KPM_HOOK_PROTO 3
 #define SUKISU_KPM_PROBE 0
 #define SUKISU_KPM_ABI_VERSION 2
 
